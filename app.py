@@ -1,14 +1,10 @@
 import sqlite3
 from contextlib import closing
 from datetime import date
-from pathlib import Path
 
 import streamlit as st
 
-
-# Keep the database next to this Python file, even if Streamlit is started
-# from a different folder.
-DATABASE_PATH = Path(__file__).resolve().parent / "placements.db"
+from database import DATABASE_PATH, get_follow_up_reminders, initialize_database
 
 APPLICATION_STATUSES = [
     "Applied",
@@ -18,12 +14,15 @@ APPLICATION_STATUSES = [
     "Rejected",
 ]
 
+initialize_database()
+
 
 def get_applications():
     """Return all applications as dictionaries for the Streamlit table."""
     with closing(sqlite3.connect(DATABASE_PATH)) as connection:
         cursor = connection.execute("""
-            SELECT application_id, company_name, job_role, application_date, status
+            SELECT application_id, company_name, job_role, application_date, status,
+                   follow_up_date
             FROM applications
             ORDER BY application_id
         """)
@@ -84,6 +83,12 @@ with st.form("add_application_form"):
     job_role = st.text_input("Job Role")
     application_date = st.date_input("Application Date", value=date.today())
     status = st.selectbox("Status", APPLICATION_STATUSES)
+    has_follow_up_date = st.checkbox("Set a follow-up date")
+    follow_up_date = (
+        st.date_input("Follow-up Date", value=date.today())
+        if has_follow_up_date
+        else None
+    )
     submitted = st.form_submit_button("Add Application")
 
 if submitted:
@@ -98,13 +103,14 @@ if submitted:
             with connection:
                 connection.execute("""
                     INSERT INTO applications
-                        (company_name, job_role, application_date, status)
-                    VALUES (?, ?, ?, ?)
+                        (company_name, job_role, application_date, status, follow_up_date)
+                    VALUES (?, ?, ?, ?, ?)
                 """, (
                     company_name.strip(),
                     job_role.strip(),
                     application_date.isoformat(),
                     status,
+                    follow_up_date.isoformat() if follow_up_date else None,
                 ))
         st.success("Application added successfully.")
 
@@ -122,6 +128,21 @@ summary_columns[1].metric(
 st.subheader("Status-wise Summary")
 status_counts = get_status_counts()
 st.bar_chart(status_counts)
+
+st.subheader("Follow-up Reminders")
+follow_up_reminders = get_follow_up_reminders()
+reminder_columns = st.columns(2)
+for column, label, category in (
+    (reminder_columns[0], "Overdue", "overdue"),
+    (reminder_columns[1], "Due today or in the next 7 days", "upcoming"),
+):
+    with column:
+        st.markdown(f"**{label}**")
+        reminders = follow_up_reminders[category]
+        if reminders:
+            st.dataframe(reminders, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No follow-ups in this period.")
 
 st.header("View Applications")
 applications = get_applications()

@@ -1,6 +1,8 @@
 # Placement Application Tracker
 
 A Streamlit app for recording job applications and summarizing them by role and status.
+Applications can also have an optional follow-up date. The dashboard highlights
+overdue follow-ups and those due today or within the next seven days.
 
 ## Run locally
 
@@ -12,7 +14,8 @@ streamlit run app.py
 ```
 
 To create a fresh database, run `python init_db.py` from this folder. The app reads
-and writes `placements.db` next to `app.py`.
+and writes `placements.db` next to `app.py`. The app adds the follow-up date column
+to an existing database automatically, preserving its current application records.
 
 ## Data note
 
